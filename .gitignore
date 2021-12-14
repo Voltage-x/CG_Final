@@ -1,0 +1,14 @@
+*.png
+*.jpg
+*.dcm
+*.csv
+*.txt
+*.roi
+*.xml
+*.xls
+*.pdf
+*.zip
+*.tcia
+*.weights
+*.ipynb
+*.pyc
