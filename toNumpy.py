@@ -5,6 +5,7 @@ from PIL import Image
 import numbers
 from functools import reduce
 
+
 def extract(cond, x):
     if isinstance(x, numbers.Number):
         return x
@@ -15,39 +16,52 @@ def extract(cond, x):
 class vec3():
     def __init__(self, x, y, z):
         (self.x, self.y, self.z) = (x, y, z)
+
     def __mul__(self, other):
         return vec3(self.x * other, self.y * other, self.z * other)
+
     def __add__(self, other):
         return vec3(self.x + other.x, self.y + other.y, self.z + other.z)
+
     def __sub__(self, other):
         return vec3(self.x - other.x, self.y - other.y, self.z - other.z)
+
     def dot(self, other):
         return (self.x * other.x) + (self.y * other.y) + (self.z * other.z)
+
     def __abs__(self):
         return self.dot(self)
+
     def norm(self):
         mag = np.sqrt(abs(self))
         return self * (1.0 / np.where(mag == 0, 1, mag))
+
     def components(self):
         return (self.x, self.y, self.z)
+
     def extract(self, cond):
         return vec3(extract(cond, self.x),
                     extract(cond, self.y),
                     extract(cond, self.z))
+
     def place(self, cond):
-        r = vec3(np.zeros(cond.shape), np.zeros(cond.shape), np.zeros(cond.shape))
+        r = vec3(np.zeros(cond.shape), np.zeros(
+            cond.shape), np.zeros(cond.shape))
         np.place(r.x, cond, self.x)
         np.place(r.y, cond, self.y)
         np.place(r.z, cond, self.z)
         return r
+
+
 rgb = vec3
 
 FARAWAY = 1.0e39
 L = vec3(5, 5, -10)        # Point light position
 E = vec3(0, 0.35, -1)     # Eye position
 
+
 class Sphere:
-    def __init__(self, center, r, diffuse, mirror = 0.5):
+    def __init__(self, center, r, diffuse, mirror=0.5):
         self.c = center
         self.r = r
         self.diffuse = diffuse
@@ -67,7 +81,7 @@ class Sphere:
     def diffusecolor(self, M):
         return self.diffuse
 
-    def light(self, O, D, d, scene, bounce):
+    def light(self, O, D, d, scene, reflection):
         M = (O + D * d)                         # intersection point
         N = (M - self.c) * (1. / self.r)        # normal
         toL = (L - M).norm()                    # direction to light
@@ -88,28 +102,34 @@ class Sphere:
         color += self.diffusecolor(M) * lv * seelight
 
         # Reflection
-        if bounce < 2:
+        if reflection < 2:
             rayD = (D - N * 2 * D.dot(N)).norm()
-            color += sphere_intersect(nudged, rayD, scene, bounce + 1) * self.mirror
+            color += sphere_intersect(nudged, rayD,
+                                      scene, reflection + 1) * self.mirror
 
         # Blinn-Phong shading (specular)
         phong = N.dot((toL + toO).norm())
         color += rgb(1, 1, 1) * np.power(np.clip(phong, 0, 1), 50) * seelight
         return color
 
+
 class CheckeredSphere(Sphere):
     def diffusecolor(self, M):
         checker = ((M.x * 2).astype(int) % 2) == ((M.z * 2).astype(int) % 2)
         return self.diffuse * checker
 
+
 def normalize(x):
     x /= np.linalg.norm(x)
     return x
 
+
 def reflected(vector, axis):
     return vector - 2 * np.dot(vector, axis) * axis
 
-def sphere_intersect(center, radius, ray_origin, ray_direction): # = intersect(rayO, rayD, obj)
+
+# = intersect(rayO, rayD, obj)
+def sphere_intersect(center, radius, ray_origin, ray_direction):
     b = 2 * np.dot(ray_direction, ray_origin - center)
     c = np.linalg.norm(ray_origin - center) ** 2 - radius ** 2
     delta = b ** 2 - 4 * c
@@ -120,15 +140,21 @@ def sphere_intersect(center, radius, ray_origin, ray_direction): # = intersect(r
             return min(t1, t2)
     return None
 
-def nearest_intersected_object(objects, ray_origin, ray_direction):
+
+def nearest_intersected_object(objects, ray_origin, ray_direction, reflection=0):
     distances = [s.intersect(ray_origin, ray_direction) for s in objects]
-    nearest_object = None
-    min_distance = np.inf
-    for index, distance in enumerate(distances):
-        if distance and distance < min_distance:
-            min_distance = distance
-            nearest_object = objects[index]
-    return nearest_object, min_distance
+    nearest = reduce(np.minimum, distances)
+    color = rgb(0, 0, 0)
+    for (s, d) in zip(objects, distances):
+        hit = (nearest != FARAWAY) & (d == nearest)
+        if np.any(hit):
+            dc = extract(hit, d)
+            Oc = ray_origin.extract(hit)
+            Dc = ray_direction.extract(hit)
+            cc = s.light(Oc, Dc, dc, objects, reflection)
+            color += cc.place(hit)
+    return color
+
 
 width = 300
 height = 200
@@ -137,67 +163,34 @@ max_depth = 3
 
 camera = vec3(0, 0.35, -1)
 ratio = float(width) / height
-screen = (-1, 1 / ratio, 1, -1 / ratio) # left, top, right, bottom
+screen = (-1, 1 / ratio, 1, -1 / ratio)  # left, top, right, bottom
 
-light = { 'position': np.array([5, 5, 5]), 'ambient': np.array([1, 1, 1]), 'diffuse': np.array([1, 1, 1]), 'specular': np.array([1, 1, 1]) }
+light = {'position': np.array([5, 5, 5]), 'ambient': np.array(
+    [1, 1, 1]), 'diffuse': np.array([1, 1, 1]), 'specular': np.array([1, 1, 1])}
 
 objects = [
     Sphere(vec3(.75, .1, 1), .6, rgb(0, 0, 1)),
     Sphere(vec3(-.75, .1, 2.25), .6, rgb(.5, .223, .5)),
     Sphere(vec3(-2.75, .1, 3.5), .6, rgb(1, .572, .184)),
-    CheckeredSphere(vec3(0,-99999.5, 0), 99999, rgb(.75, .75, .75), 0.25),
-    ]
+    CheckeredSphere(vec3(0, -99999.5, 0), 99999, rgb(.75, .75, .75), 0.25),
+]
 
 image = np.zeros((height, width, 3))
 x = np.tile(np.linspace(screen[0], screen[2], width), height)
 y = np.repeat(np.linspace(screen[1], screen[3], height), width)
 # screen is on origin
-pixel = vec3(x, y, 0) # Q
-origin = camera # O
-direction = (pixel - origin).norm() # (Q-E).norm
+pixel = vec3(x, y, 0)  # Q
+origin = camera  # O
+direction = (pixel - origin).norm()  # (Q-E).norm
 
-color = np.zeros((3)) # col
+color = np.zeros((3))  # col
 reflection = 1
 
-for k in range(max_depth):
-    # check for intersections
-    nearest_object, min_distance = nearest_intersected_object(objects, origin, direction)
-    if nearest_object is None:
-        break
+# check for intersections
+color = nearest_intersected_object(objects, origin, direction)
 
-    intersection = origin + min_distance * direction
-    normal_to_surface = normalize(intersection - nearest_object['center'])
-    shifted_point = intersection + 1e-5 * normal_to_surface
-    intersection_to_light = normalize(light['position'] - shifted_point)
-
-    _, min_distance = nearest_intersected_object(objects, shifted_point, intersection_to_light)
-    intersection_to_light_distance = np.linalg.norm(light['position'] - intersection)
-    is_shadowed = min_distance < intersection_to_light_distance
-
-    if is_shadowed:
-        break
-
-    illumination = np.zeros((3))
-
-    # ambiant
-    illumination += nearest_object['ambient'] * light['ambient']
-
-    # diffuse
-    illumination += nearest_object['diffuse'] * light['diffuse'] * np.dot(intersection_to_light, normal_to_surface)
-
-    # specular
-    intersection_to_camera = normalize(camera - intersection)
-    H = normalize(intersection_to_light + intersection_to_camera)
-    illumination += nearest_object['specular'] * light['specular'] * np.dot(normal_to_surface, H) ** (nearest_object['shininess'] / 4)
-
-    # reflection
-    color += reflection * illumination
-    reflection *= nearest_object['reflection']
-
-    origin = shifted_point
-    direction = reflected(direction, normal_to_surface)
-
-rgb = [Image.fromarray((255 * np.clip(c, 0, 1).reshape((height, width))).astype(np.uint8), "L") for c in color.components()]
+rgb = [Image.fromarray((255 * np.clip(c, 0, 1).reshape((height, width))
+                        ).astype(np.uint8), "L") for c in color.components()]
 Image.merge("RGB", rgb).save("test.png")
 
 # %%
