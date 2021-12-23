@@ -122,18 +122,23 @@ scene = [
     Sphere(vec3(0, -9000, 0), 9000-0.7, rgb(.7, .7, .7)),
 ]
 
-ratio = float(weight) / height
-screen = (-1, 1 / ratio, 1, -1 / ratio)  # left, top, right, bottom
-x = np.tile(np.linspace(screen[0], screen[2], weight), height)
-y = np.repeat(np.linspace(screen[1], screen[3], height), weight)
 
-t0 = time.time()
-pixel = vec3(x, y, 0)
-color = raytrace(camera, (pixel - camera).norm(), scene)
-print("Took", time.time() - t0)
+def main(w, h):
+    weight = w
+    height = h
+    ratio = float(weight) / height
+    screen = (-1, 1 / ratio, 1, -1 / ratio)  # left, top, right, bottom
+    x = np.tile(np.linspace(screen[0], screen[2], weight), height)
+    y = np.repeat(np.linspace(screen[1], screen[3], height), weight)
 
-rgb = [Image.fromarray((255 * np.clip(c, 0, 1).reshape((height, weight))
-                        ).astype(np.uint8), "L") for c in color.components()]
-Image.merge("RGB", rgb).save("rt2.png")
+    t0 = time.time()
+    pixel = vec3(x, y, 0)
+    color = raytrace(camera, (pixel - camera).norm(), scene)
+    #print("Took", time.time() - t0)
+    return time.time() - t0
+
+    rgb = [Image.fromarray((255 * np.clip(c, 0, 1).reshape((height, weight))
+                            ).astype(np.uint8), "L") for c in color.components()]
+    Image.merge("RGB", rgb).save("rt2.png")
 
 # %%
