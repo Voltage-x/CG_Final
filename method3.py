@@ -4,6 +4,7 @@ from functools import reduce
 import numpy as np
 import time
 import numbers
+import random
 
 
 def extract(cond, x):
@@ -141,14 +142,25 @@ class Sphere:
 
 
 scene = [
-    Sphere(vec3(-0.2, 0, -1), .7, rgb(.7, 0, 0)),
-    Sphere(vec3(0.1, -0.3, 0), .1, rgb(.7, 0, .7)),
-    Sphere(vec3(-0.3, 0, 0), .15, rgb(0, .7, 0)),
+    #Sphere(vec3(-0.2, 0, -1), .7, rgb(.7, 0, 0)),
+    #Sphere(vec3(0.1, -0.3, 0), .1, rgb(.7, 0, .7)),
+    #Sphere(vec3(-0.3, 0, 0), .15, rgb(0, .7, 0)),
     Sphere(vec3(0, -9000, 0), 9000-0.7, rgb(.7, .7, .7)),
 ]
 
 
-def main(w, h):
+def main(w, h, n):
+    rgb = vec3
+    v1 = -2.6
+    v2 = 1.7
+    v3 = .1
+    for i in range(n):
+        scene.append(Sphere(vec3(v1, v2, -2), v3,
+                     rgb(random.random(), random.random(), random.random())))
+        v1 += .3
+        if (i+1) % 16 == 0 and i != 0:
+            v1 = -2.6
+            v2 -= .3
     weight = w
     height = h
     ratio = float(weight) / height
@@ -159,11 +171,9 @@ def main(w, h):
     t0 = time.time()
     pixel = vec3(x, y, 0)
     color = raytrace(camera, (pixel - camera).norm(), scene)
-    #print("Took", time.time() - t0)
-    return time.time() - t0
 
     rgb = [Image.fromarray((255 * np.clip(c, 0, 1).reshape((height, weight))
                             ).astype(np.uint8), "L") for c in color.components()]
-    Image.merge("RGB", rgb).save("rt3.png")
-
+    Image.merge("RGB", rgb).save("method3.png")
+    return time.time() - t0
 # %%

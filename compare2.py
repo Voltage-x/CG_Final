@@ -21,7 +21,7 @@ b = perfplot.bench(
     setup=lambda n: np.random.rand(n),
     kernels=[compare_num, compare],
     labels=["numpy.minimum() + reduce", "if condition + for loop"],
-    n_range=[2 ** k for k in range(25)],
+    n_range=[2 ** k for k in range(50)],
     xlabel="len(a)",
 )
 b.show()

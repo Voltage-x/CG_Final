@@ -12,3 +12,4 @@
 *.weights
 *.ipynb
 *.pyc
+plot*
