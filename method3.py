@@ -173,7 +173,4 @@ def main(w, h):
                             ).astype(np.uint8), "L") for c in color.rgbValues()]
     Image.merge("RGB", rgb).save("method3.png")
     return time.time() - t0
-
-
-main(400, 300)
 # %%

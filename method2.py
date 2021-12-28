@@ -121,9 +121,9 @@ class Sphere:
 
 
 objects = [
-    Sphere(vec3(-0.2, 0, -1), .7, rgb(1, 0, 0)),
+    Sphere(vec3(-0.2, 0, -1), .7, rgb(.7, 0, 0)),
     Sphere(vec3(0.1, -0.3, 0), .1, rgb(.7, 0, .7)),
-    Sphere(vec3(-0.3, 0, 0), .15, rgb(0, 1, 0)),
+    Sphere(vec3(-0.3, 0, 0), .15, rgb(0, .7, 0)),
     Sphere(vec3(0, -9000, 0), 9000-0.7, rgb(.7, .7, .7)),
 ]
 
