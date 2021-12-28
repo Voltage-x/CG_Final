@@ -48,19 +48,15 @@ def main(width, height, n):
         [1, 1, 1]), 'diffuse': np.array([1, 1, 1]), 'specular': np.array([1, 1, 1])}
 
     objects = [
+        {'center': np.array([-0.2, 0, -1]), 'radius': 0.7, 'ambient': np.array([0.1, 0, 0]), 'diffuse': np.array(
+            [0.7, 0, 0]), 'specular': np.array([1, 1, 1]), 'shininess': 100, 'reflection': 0.5},
+        {'center': np.array([0.1, -0.3, 0]), 'radius': 0.1, 'ambient': np.array([0.1, 0, 0.1]), 'diffuse': np.array(
+            [0.7, 0, 0.7]), 'specular': np.array([1, 1, 1]), 'shininess': 100, 'reflection': 0.5},
+        {'center': np.array([-0.3, 0, 0]), 'radius': 0.15, 'ambient': np.array([0, 0.1, 0]), 'diffuse': np.array(
+            [0, 0.6, 0]), 'specular': np.array([1, 1, 1]), 'shininess': 100, 'reflection': 0.5},
         {'center': np.array([0, -9000, 0]), 'radius': 9000 - 0.7, 'ambient': np.array([0.1, 0.1, 0.1]),
          'diffuse': np.array([0.6, 0.6, 0.6]), 'specular': np.array([1, 1, 1]), 'shininess': 100, 'reflection': 0.5}
     ]
-    v1 = -2.6
-    v2 = 1.7
-    v3 = .1
-    for i in range(n):
-        objects.append({'center': np.array([v1, v2, -2]), 'radius': v3, 'ambient': np.array([.001, .001, .001]), 'diffuse': np.array(
-            [random.random(), random.random(), random.random()]), 'specular': np.array([1, 1, 1]), 'shininess': 100, 'reflection': 0.5})
-        v1 += .3
-        if (i+1) % 16 == 0 and i != 0:
-            v1 = -2.6
-            v2 -= .3
 
     image = np.zeros((height, width, 3))
     t0 = time.time()
@@ -120,7 +116,6 @@ def main(width, height, n):
                 direction = reflected(direction, normal_to_surface)
 
             image[i, j] = np.clip(color, 0, 1)
-        #print("%d/%d" % (i + 1, height))
 
     plt.imsave('method1.png', image)
     return time.time() - t0

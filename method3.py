@@ -7,7 +7,7 @@ import numbers
 import random
 
 
-def extract(cond, x):
+def extractHitPixels(cond, x):
     if isinstance(x, numbers.Number):
         return x
     else:
@@ -33,17 +33,17 @@ class vec3():
     def __abs__(self):
         return self.dot(self)
 
-    def norm(self):
+    def normalizationVec3(self):
         mag = np.sqrt(abs(self))
         return self * (1.0 / np.where(mag == 0, 1, mag))
 
-    def components(self):
+    def rgbValues(self):
         return (self.x, self.y, self.z)
 
-    def extract(self, cond):
-        return vec3(extract(cond, self.x),
-                    extract(cond, self.y),
-                    extract(cond, self.z))
+    def extractHitPixels(self, cond):
+        return vec3(extractHitPixels(cond, self.x),
+                    extractHitPixels(cond, self.y),
+                    extractHitPixels(cond, self.z))
 
     def place(self, cond):
         r = vec3(np.zeros(cond.shape), np.zeros(
@@ -56,111 +56,103 @@ class vec3():
 
 rgb = vec3
 
-(weight, height) = (1920, 1080)         # Screen size
-light = vec3(5, 5, 5)        # Point light position
-camera = vec3(0, 0, 1)     # Eye position
-FARAWAY = np.inf            # an implausibly huge distance
-max_depth = 1
+(weight, height) = (1920, 1080)  # resolution
+light = vec3(5, 5, 5)  # light position
+camera = vec3(0, 0, 1)  # camera position
+infDist = np.inf  # large Distance
+max_depth = 1  # number of reflection
 
 
 def raytrace(ray_origin, ray_direction, objects, reflection=0):
+    global rgb
 
+    # check for intersections
     distances = [obj.intersect(ray_origin, ray_direction) for obj in objects]
     nearest = reduce(np.minimum, distances)
     color = rgb(0, 0, 0)
     for (s, d) in zip(objects, distances):
-        hit = (nearest != FARAWAY) & (d == nearest)
+        hit = (nearest != infDist) & (d == nearest)
         if np.any(hit):
-            dc = extract(hit, d)
-            Oc = ray_origin.extract(hit)
-            Dc = ray_direction.extract(hit)
+            dc = extractHitPixels(hit, d)
+            Oc = ray_origin.extractHitPixels(hit)
+            Dc = ray_direction.extractHitPixels(hit)
             cc = s.light(Oc, Dc, dc, objects, reflection)
             color += cc.place(hit)
     return color
 
 
 class Sphere:
-    def __init__(self, center, radius, diffuse, mirror=0.5):
+    def __init__(self, center, radius, diffuse, reflectionVar=0.5):
         self.center = center
         self.radius = radius
         self.diffuse = diffuse
-        self.mirror = mirror
+        self.reflectionVar = reflectionVar
 
-    def intersect(self, O, D):
-        b = 2 * D.dot(O - self.center)
-        c = abs(self.center) + abs(O) - 2 * \
-            self.center.dot(O) - (self.radius * self.radius)
-        disc = (b ** 2) - (4 * c)
-        sq = np.sqrt(np.maximum(0, disc))
-        h0 = (-b - sq) / 2
-        h1 = (-b + sq) / 2
-        h = np.where((h0 > 0) & (h0 < h1), h0, h1)
-        pred = (disc > 0) & (h > 0)
-        return np.where(pred, h, FARAWAY)
+    def intersect(self, rayOrigin, rayDirection):
+        b = 2 * rayDirection.dot(rayOrigin - self.center)
+        c = abs(self.center) + abs(rayOrigin) - 2 * \
+            self.center.dot(rayOrigin) - (self.radius * self.radius)
+        delta = (b ** 2) - (4 * c)
+        sq = np.sqrt(np.maximum(0, delta))
+        t1 = (-b - sq) / 2
+        t2 = (-b + sq) / 2
+        h = np.where((t1 > 0) & (t1 < t2), t1, t2)
 
-    def diffusecolor(self):
+        pred = (delta > 0) & (h > 0)
+        return np.where(pred, h, infDist)
+
+    def renderDiffuse(self):
         return self.diffuse
 
-    def light(self, origin, min_distance, direction, scene, reflection):
+    def light(self, origin, minDistance, direction, objects, reflection):
         # intersection point
-        intersection = (origin + min_distance * direction)
-        normal_to_surface = (intersection - self.center) * \
-            (1. / self.radius)        # normal
-        # direction to light
-        intersection_to_light = (light - intersection).norm()
-        # direction to ray origin
-        intersection_to_original = (camera - intersection).norm()
-        # M nudged to avoid itself
-        nudged = intersection + normal_to_surface * .0001
+        intersection = (origin + minDistance * direction)
+        normalToSurface = (intersection - self.center) * \
+            (1. / self.radius)
 
-        # Shadow: find if the point is shadowed or not.
-        # This amounts to finding out if M can see the light
-        light_distances = [s.intersect(
-            nudged, intersection_to_light) for s in scene]
-        light_nearest = reduce(np.minimum, light_distances)
-        seelight = light_distances[scene.index(self)] == light_nearest
+        intersectionToLight = (light - intersection).normalizationVec3()
+        intersectionToOrigin = (camera - intersection).normalizationVec3()
 
-        # Ambient
+        # offset
+        offsetSelf = intersection + normalToSurface * 1.0e-4
+
+        # if the point is shadowed.
+        lightDistances = [obj.intersect(
+            offsetSelf, intersectionToLight) for obj in objects]
+        lightNearest = reduce(np.minimum, lightDistances)
+        boolSeelight = lightDistances[objects.index(self)] == lightNearest
+
+        # ambient
         color = rgb(0.001, 0.001, 0.001)
 
-        # Lambert shading (diffuse)
-        lv = np.maximum(normal_to_surface.dot(intersection_to_light), 0)
-        color += self.diffusecolor() * lv * seelight
+        # diffuse
+        diffuseLevel = np.maximum(normalToSurface.dot(intersectionToLight), 0)
+        color += self.renderDiffuse() * diffuseLevel * boolSeelight
 
-        # Reflection
+        # reflection times
         if reflection < max_depth:
-            rayD = (min_distance - normal_to_surface * 2 *
-                    min_distance.dot(normal_to_surface)).norm()
-            color += raytrace(nudged, rayD, scene,
-                              reflection + 1) * self.mirror
+            newRayDirection = (minDistance - normalToSurface * 2 *
+                               minDistance.dot(normalToSurface)).normalizationVec3()
+            color += raytrace(offsetSelf, newRayDirection, objects,
+                              reflection + 1) * self.reflectionVar
 
-        # Blinn-Phong shading (specular)
-        phong = normal_to_surface.dot(
-            (intersection_to_light + intersection_to_original).norm())
-        color += rgb(1, 1, 1) * np.power(np.clip(phong, 0, 1), 50) * seelight
+        # specular
+        phongShading = normalToSurface.dot(
+            (intersectionToLight + intersectionToOrigin).normalizationVec3())
+        color += rgb(1, 1, 1) * \
+            np.power(np.clip(phongShading, 0, 1), 50) * boolSeelight
         return color
 
 
-scene = [
-    #Sphere(vec3(-0.2, 0, -1), .7, rgb(.7, 0, 0)),
-    #Sphere(vec3(0.1, -0.3, 0), .1, rgb(.7, 0, .7)),
-    #Sphere(vec3(-0.3, 0, 0), .15, rgb(0, .7, 0)),
+objects = [
+    Sphere(vec3(-0.2, 0, -1), .7, rgb(.7, 0, 0)),
+    Sphere(vec3(0.1, -0.3, 0), .1, rgb(.7, 0, .7)),
+    Sphere(vec3(-0.3, 0, 0), .15, rgb(0, .7, 0)),
     Sphere(vec3(0, -9000, 0), 9000-0.7, rgb(.7, .7, .7)),
 ]
 
 
-def main(w, h, n):
-    rgb = vec3
-    v1 = -2.6
-    v2 = 1.7
-    v3 = .1
-    for i in range(n):
-        scene.append(Sphere(vec3(v1, v2, -2), v3,
-                     rgb(random.random(), random.random(), random.random())))
-        v1 += .3
-        if (i+1) % 16 == 0 and i != 0:
-            v1 = -2.6
-            v2 -= .3
+def main(w, h):
     weight = w
     height = h
     ratio = float(weight) / height
@@ -169,11 +161,16 @@ def main(w, h, n):
     y = np.repeat(np.linspace(screen[1], screen[3], height), weight)
 
     t0 = time.time()
+
+    # screen is on origin
     pixel = vec3(x, y, 0)
-    color = raytrace(camera, (pixel - camera).norm(), scene)
+    color = raytrace(camera, (pixel - camera).normalizationVec3(), objects)
 
     rgb = [Image.fromarray((255 * np.clip(c, 0, 1).reshape((height, weight))
-                            ).astype(np.uint8), "L") for c in color.components()]
+                            ).astype(np.uint8), "L") for c in color.rgbValues()]
     Image.merge("RGB", rgb).save("method3.png")
     return time.time() - t0
+
+
+main(400, 300)
 # %%

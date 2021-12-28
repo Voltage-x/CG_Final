@@ -25,11 +25,11 @@ class vec3():
     def __abs__(self):
         return self.dot(self)
 
-    def norm(self):
-        mag = np.sqrt(abs(self))
-        return self * (1.0 / np.where(mag == 0, 1, mag))
+    def normalizationVec3(self):
+        magnitude = np.sqrt(abs(self))
+        return self * (1.0 / np.where(magnitude == 0, 1, magnitude))
 
-    def components(self):
+    def rgbValues(self):
         return (self.x, self.y, self.z)
 
 
@@ -42,15 +42,17 @@ camera = vec3(0, 0, 1)  # camera position
 infDist = 1.0e40  # large Distance
 
 
-def raytrace(ray_origin, ray_direction, objects, reflection=0):
+def raytrace(rayOrigin, rayDirection, objects, reflection=0):
     global rgb
+
     # check for intersections
-    distances = [obj.intersect(ray_origin, ray_direction) for obj in objects]
+    distances = [obj.intersect(rayOrigin, rayDirection) for obj in objects]
     nearest = reduce(np.minimum, distances)
     color = rgb(0, 0, 0)
+
     # reduce to one array and calculate color
     for (obj, d) in zip(objects, distances):
-        color += obj.light(ray_origin, ray_direction, d, objects, reflection) * \
+        color += obj.light(rayOrigin, rayDirection, d, objects, reflection) * \
             (nearest != infDist) * (d == nearest)
     return color
 
@@ -62,10 +64,10 @@ class Sphere:
         self.diffuse = diffuse
         self.reflectionVar = reflectionVar
 
-    def intersect(self, ray_origin, ray_direction):
-        b = 2 * ray_direction.dot(ray_origin - self.center)
-        c = abs(self.center) + abs(ray_origin) - 2 * \
-            self.center.dot(ray_origin) - (self.radius * self.radius)
+    def intersect(self, rayOrigin, rayDirection):
+        b = 2 * rayDirection.dot(rayOrigin - self.center)
+        c = abs(self.center) + abs(rayOrigin) - 2 * \
+            self.center.dot(rayOrigin) - (self.radius * self.radius)
         delta = (b ** 2) - (4 * c)
         sq = np.sqrt(np.maximum(0, delta))
         t1 = (-b - sq) / 2
@@ -78,14 +80,15 @@ class Sphere:
     def renderDiffuse(self):
         return self.diffuse
 
-    def light(self, origin, direction, min_distance, objects, reflection):
+    def light(self, origin, direction, minDistance, objects, reflection):
         # intersection point
-        intersection = (origin + direction * min_distance)
+        intersection = (origin + direction * minDistance)
         normalToSurface = (intersection - self.center) * \
-            (1. / self.radius)        # normal
+            (1. / self.radius)
 
-        intersectionToLight = (light - intersection).norm()
-        intersectionToOrigin = (camera - intersection).norm()
+        intersectionToLight = (light - intersection).normalizationVec3()
+        intersectionToOrigin = (camera - intersection).normalizationVec3()
+
         # offset
         offsetSelf = intersection + normalToSurface * 1.0e-4
 
@@ -95,25 +98,25 @@ class Sphere:
         lightNearest = reduce(np.minimum, lightDistances)
         boolSeelight = lightDistances[objects.index(self)] == lightNearest
 
-        # Ambient
-        color = rgb(0.01, 0.01, 0.01)
+        # ambient
+        color = rgb(0.001, 0.001, 0.001)
 
-        # Diffuse
+        # diffuse
         diffuseLevel = np.maximum(normalToSurface.dot(intersectionToLight), 0)
         color += self.renderDiffuse() * diffuseLevel * boolSeelight
 
-        # Reflection
+        # reflection times
         if reflection < max_depth:
-            rayD = (direction - normalToSurface * 2 *
-                    direction.dot(normalToSurface)).norm()
-            color += raytrace(offsetSelf, rayD, objects,
+            newRayDirection = (direction - normalToSurface * 2 *
+                               direction.dot(normalToSurface)).normalizationVec3()
+            color += raytrace(offsetSelf, newRayDirection, objects,
                               reflection + 1) * self.reflectionVar
 
-        # Specular
-        phong = normalToSurface.dot(
-            (intersectionToLight + intersectionToOrigin).norm())
+        # specular
+        phongShading = normalToSurface.dot(
+            (intersectionToLight + intersectionToOrigin).normalizationVec3())
         color += rgb(1, 1, 1) * \
-            np.power(np.clip(phong, 0, 1), 50) * boolSeelight
+            np.power(np.clip(phongShading, 0, 1), 50) * boolSeelight
         return color
 
 
@@ -134,14 +137,13 @@ def main(w, h):
     y = np.repeat(np.linspace(screen[1], screen[3], height), weight)
 
     t0 = time.time()
+
+    # screen is on origin
     pixel = vec3(x, y, 0)
-    color = raytrace(camera, (pixel - camera).norm(), objects)
+    color = raytrace(camera, (pixel - camera).normalizationVec3(), objects)
 
     rgb = [Image.fromarray((255 * np.clip(c, 0, 1).reshape((height, weight))
-                            ).astype(np.uint8), "L") for c in color.components()]
+                            ).astype(np.uint8), "L") for c in color.rgbValues()]
     Image.merge("RGB", rgb).save("method2.png")
     return time.time() - t0
-
-
-main(400, 300)
 # %%
