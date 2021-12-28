@@ -34,8 +34,8 @@ class vec3():
         return self.dot(self)
 
     def normalizationVec3(self):
-        mag = np.sqrt(abs(self))
-        return self * (1.0 / np.where(mag == 0, 1, mag))
+        magnitude = np.sqrt(abs(self))
+        return self * (1.0 / np.where(magnitude == 0, 1, magnitude))
 
     def rgbValues(self):
         return (self.x, self.y, self.z)
@@ -45,7 +45,7 @@ class vec3():
                     extractHitPixels(cond, self.y),
                     extractHitPixels(cond, self.z))
 
-    def place(self, cond):
+    def copyValue(self, cond):
         r = vec3(np.zeros(cond.shape), np.zeros(
             cond.shape), np.zeros(cond.shape))
         np.place(r.x, cond, self.x)
@@ -59,25 +59,28 @@ rgb = vec3
 (weight, height) = (1920, 1080)  # resolution
 light = vec3(5, 5, 5)  # light position
 camera = vec3(0, 0, 1)  # camera position
-infDist = np.inf  # large Distance
+infDist = 1.0e40  # large Distance
 max_depth = 1  # number of reflection
 
 
-def raytrace(ray_origin, ray_direction, objects, reflection=0):
+def raytrace(rayOrigin, rayDirection, objects, reflection=0):
     global rgb
 
     # check for intersections
-    distances = [obj.intersect(ray_origin, ray_direction) for obj in objects]
+    distances = [obj.intersect(rayOrigin, rayDirection) for obj in objects]
     nearest = reduce(np.minimum, distances)
     color = rgb(0, 0, 0)
-    for (s, d) in zip(objects, distances):
+
+    # reduce to one array of each object and calculate color
+    for (obj, d) in zip(objects, distances):
         hit = (nearest != infDist) & (d == nearest)
         if np.any(hit):
-            dc = extractHitPixels(hit, d)
-            Oc = ray_origin.extractHitPixels(hit)
-            Dc = ray_direction.extractHitPixels(hit)
-            cc = s.light(Oc, Dc, dc, objects, reflection)
-            color += cc.place(hit)
+            directionHit = extractHitPixels(hit, d)
+            originalHit = rayOrigin.extractHitPixels(hit)
+            distanceHit = rayDirection.extractHitPixels(hit)
+            calculateHit = obj.light(
+                originalHit, distanceHit, directionHit, objects, reflection)
+            color += calculateHit.copyValue(hit)
     return color
 
 
@@ -104,9 +107,9 @@ class Sphere:
     def renderDiffuse(self):
         return self.diffuse
 
-    def light(self, origin, minDistance, direction, objects, reflection):
+    def light(self, origin, direction, minDistance, objects, reflection):
         # intersection point
-        intersection = (origin + minDistance * direction)
+        intersection = (origin + direction * minDistance)
         normalToSurface = (intersection - self.center) * \
             (1. / self.radius)
 
@@ -131,8 +134,8 @@ class Sphere:
 
         # reflection times
         if reflection < max_depth:
-            newRayDirection = (minDistance - normalToSurface * 2 *
-                               minDistance.dot(normalToSurface)).normalizationVec3()
+            newRayDirection = (direction - normalToSurface * 2 *
+                               direction.dot(normalToSurface)).normalizationVec3()
             color += raytrace(offsetSelf, newRayDirection, objects,
                               reflection + 1) * self.reflectionVar
 
